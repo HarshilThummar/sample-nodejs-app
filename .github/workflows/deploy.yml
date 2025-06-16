@@ -11,15 +11,15 @@ jobs:
       - name: setup aws credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id: ${{ vars.DEPLOYMENT_IAM_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.DEPLOYMENT_IAM_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.DEPLOYMENT_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
       - uses: aws-actions/amazon-ecr-login@v1
         id: ecr
       - uses: docker/metadata-action@v4
         id: image-metadata
         with:
-          images: ${{ steps.ecr.outputs.registry }}/${{ vars.DEPLOYMENT_ECR_IMAGE_NAME }}
+          images: ${{ steps.ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}
           tags: |
             type=ref,event=branch
             type=sha,format=short,prefix=${{ github.ref_name }}-
