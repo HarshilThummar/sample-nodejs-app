@@ -29,9 +29,17 @@ jobs:
             type=ref,event=branch
             type=sha,format=short,prefix=${{ github.ref_name }}-
 
+#      - name: Build Docker image
+#        run: |
+#          docker build -t ${{ steps.image-metadata.outputs.tags }} .
+
       - name: Build Docker image
         run: |
-          docker build -t ${{ steps.image-metadata.outputs.tags }} .
+          IMAGE_TAG=$(echo "${{ steps.image-metadata.outputs.tags }}" | cut -d',' -f1)
+          docker build -t "$IMAGE_TAG" .
+        env:
+          IMAGE_TAGS: ${{ steps.image-metadata.outputs.tags }}
+
 
 #      - name: Build image using Kaniko (but don't push yet)
 #        uses: cloud-army/kaniko-action@v1.0.5
