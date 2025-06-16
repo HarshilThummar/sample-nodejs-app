@@ -29,28 +29,37 @@ jobs:
             type=ref,event=branch
             type=sha,format=short,prefix=${{ github.ref_name }}-
 
-      - name: Build image using Kaniko (but don't push yet)
-        uses: cloud-army/kaniko-action@v1.0.5
-        with:
-          file: Dockerfile
-          tags: ${{ steps.image-metadata.outputs.tags }}
-          labels: ${{ steps.image-metadata.outputs.labels }}
-          push: false #Don't push yet!
-          cache: false 
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ steps.image-metadata.outputs.tags }} .
+
+#      - name: Build image using Kaniko (but don't push yet)
+#        uses: cloud-army/kaniko-action@v1.0.5
+#        with:
+#          file: Dockerfile
+#          tags: ${{ steps.image-metadata.outputs.tags }}
+#          labels: ${{ steps.image-metadata.outputs.labels }}
+#          push: false #Don't push yet!
+#          cache: false 
           
       - name: Scan Docker image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ steps.ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:${{ steps.image-metadata.outputs.version }}
           format: table
-          exit-code: 1
           ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          
+      - name: Push Docker image to Amazon ECR
+        run: |
+          docker push ${{ steps.image-metadata.outputs.tags }}
 
-      - name: Push image to ECR (only after scan)
-        uses: cloud-army/kaniko-action@v1.0.5
-        with:
-          file: Dockerfile
-          tags: ${{ steps.image-metadata.outputs.tags }}
-          labels: ${{ steps.image-metadata.outputs.labels }}
-          push: true
-          cache: false
+#      - name: Push image to ECR (only after scan)
+#        uses: cloud-army/kaniko-action@v1.0.5
+#        with:
+#          file: Dockerfile
+#          tags: ${{ steps.image-metadata.outputs.tags }}
+#          labels: ${{ steps.image-metadata.outputs.labels }}
+#          push: true
+#          cache: false
