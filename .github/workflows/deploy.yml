@@ -5,78 +5,41 @@ on:
 
 jobs:
   build:
-    runs-on: [ "ubuntu-latest" ]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
-      - name: setup aws credentials
+      - name: Setup AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
+          aws-access-key-id: '${{ secrets.AWS_ACCESS_KEY_ID }}'
+          aws-secret-access-key: '${{ secrets.AWS_SECRET_ACCESS_KEY }}'
+          aws-region: '${{ secrets.AWS_REGION }}'
       - name: Log in to Amazon ECR
         id: ecr
         uses: aws-actions/amazon-ecr-login@v1
-
       - name: Generate Docker image metadata
-        uses: docker/metadata-action@v4
         id: image-metadata
+        uses: docker/metadata-action@v4
         with:
-          images: ${{ steps.ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}
+          images: '${{ steps.ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}'
           tags: |
             type=ref,event=branch
             type=sha,format=short,prefix=${{ github.ref_name }}-
-
-#      - name: Build Docker image
-#        run: |
-#          docker build -t ${{ steps.image-metadata.outputs.tags }} .
-
+      - name: Extract first tag
+        id: extract-tag
+        run: >-
+          echo "first_tag=$(echo '${{ steps.image-metadata.outputs.tags }}' |
+          head -n 1)" >> $GITHUB_OUTPUT
       - name: Build Docker image
-        run: |
-          FIRST_TAG=$(echo "${TAGS}" | head -n 1)
-          docker build -t "$FIRST_TAG" .
-        env:
-          TAGS: ${{ steps.image-metadata.outputs.tags }}
-
-#      - name: Build image using Kaniko (but don't push yet)
-#        uses: cloud-army/kaniko-action@v1.0.5
-#        with:
-#          file: Dockerfile
-#          tags: ${{ steps.image-metadata.outputs.tags }}
-#          labels: ${{ steps.image-metadata.outputs.labels }}
-#          push: false #Don't push yet!
-#          cache: false 
-          
-#       - name: Scan Docker image with Trivy
-#         uses: aquasecurity/trivy-action@master
-#         with:
-# #          image-ref: ${{ steps.ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:${{ steps.image-metadata.outputs.version }}
-#           image-ref: ${{ steps.image-metadata.outputs.tags }}
-#           format: table
-#           ignore-unfixed: true
-#           vuln-type: os,library
-#           severity: CRITICAL,HIGH
-
+        run: 'docker build -t ${{ steps.extract-tag.outputs.first_tag }} .'
       - name: Scan Docker image with Trivy
-        run: |
-           FIRST_TAG=$(echo "${TAGS}" | head -n 1)
-           echo "Scanning image: $FIRST_TAG"
-
-           trivy image --exit-code 1 --ignore-unfixed --severity CRITICAL,HIGH --format table "$FIRST_TAG"
-        env:
-           TAGS: ${{ steps.image-metadata.outputs.tags }}
-
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ steps.extract-tag.outputs.first_tag }}'
+          format: table
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
       - name: Push Docker image to Amazon ECR
-        run: |
-          docker push ${{ steps.image-metadata.outputs.tags }}
+        run: 'docker push ${{ steps.extract-tag.outputs.first_tag }}'
 
-#      - name: Push image to ECR (only after scan)
-#        uses: cloud-army/kaniko-action@v1.0.5
-#        with:
-#          file: Dockerfile
-#          tags: ${{ steps.image-metadata.outputs.tags }}
-#          labels: ${{ steps.image-metadata.outputs.labels }}
-#          push: true
-#          cache: false
