@@ -1,33 +1,36 @@
-name: Node.js CI/CD to AWS ECR
 on:
   push:
     branches:
       - master
 
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-
+  build:
+    runs-on: [ "ubuntu-latest" ]
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Configure AWS credentials
+      - uses: actions/checkout@v3
+      - name: setup aws credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
-
-      - name: Build Docker image
-        run: |
-          docker build -t ${{ secrets.ECR_REPOSITORY }}:${{ github.sha }} .
-          docker tag ${{ secrets.ECR_REPOSITORY }}:${{ github.sha }} ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
-
+          aws-access-key-id: ${{ vars.DEPLOYMENT_IAM_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.DEPLOYMENT_IAM_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.DEPLOYMENT_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v1
+        id: ecr
+      - uses: docker/metadata-action@v4
+        id: image-metadata
+        with:
+          images: ${{ steps.ecr.outputs.registry }}/${{ vars.DEPLOYMENT_ECR_IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,format=short,prefix=${{ github.ref_name }}-
+      - uses: cloud-army/kaniko-action@v1.0.5
+        with:
+          file: Dockerfile
+          tags: ${{ steps.image-metadata.outputs.tags }}
+          labels: ${{ steps.image-metadata.outputs.labels }}
+          push: true
+          cache: true
+ 
       - name: Scan Docker image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
